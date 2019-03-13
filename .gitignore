@@ -1,0 +1,5 @@
+*.pkl
+*.cupt
+*.gz
+data/corpora/sharedtask-data-master/
+results/
