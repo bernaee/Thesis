@@ -1,10 +1,10 @@
 import gzip
 import numpy as np
-from src.Operations import *
+import logging
 
 
 def load_all_word_embeding_dictionary(path):
-    print('Reading word vectors...')
+    logging.info('Reading word vectors...')
     with gzip.open(path, 'rt') as fin:
         n, d = map(int, fin.readline().split())
         labels = []
@@ -17,7 +17,7 @@ def load_all_word_embeding_dictionary(path):
 
 
 def get_word_embeding_dictionary(path):
-    print('Reading word vectors...')
+    logging.info('Reading word vectors...')
     with gzip.open(path, 'rt') as fin:
         labels = []
         for idx, line in enumerate(fin):
@@ -80,8 +80,7 @@ def read_fastText_word_embeddings(we_path, words, n_words, embedding_size=300):
     for v_idx, embedding_vector in unk_word_vector_indexes.items():
         if embedding_vector is not None:
             embedding_matrix[v_idx] = np.array(embedding_vector)
-
+    n_unk_words = len(unk_word_vector_indexes)
+    logging.info('Number of found tokens: %s' % n_words - n_unk_words)
+    logging.info('Number of unknown tokens: %s' % n_unk_words)
     return embedding_matrix, unk_word_vector
-
-
-
