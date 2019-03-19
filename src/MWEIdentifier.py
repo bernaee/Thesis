@@ -2,6 +2,7 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
 from keras.models import Model, Input
 from keras.layers import LSTM, Embedding, Dense, TimeDistributed, Bidirectional
+from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from keras.layers import *
 from keras_contrib.layers import CRF
 import logging
@@ -21,21 +22,22 @@ class MWEIdentifier:
     def set_params(self, params):
         logging.info('Setting params...')
         self.n_units = params['n_units']
-        self._dropout = params['dropout']
+        self.dropout = params['dropout']
+        self.var_dropout = params['var_dropout']
         self.batch_size = params['batch_size']
         self.epochs = params['epochs']
+        self.patience = params['patience']
+        self.verbose = params['verbose']
 
     def set_char_cnn_model_params(self, params):
         logging.info('Setting char cnn params...')
         self.char_emb_size = params['char_emb_size']
         self.char_window_size = params['char_window_size']
         self.char_filter_size = params['char_filter_size']
-        self.char_cnn_mask_zero = params['char_cnn_mask_zero']
 
     def set_char_lstm_model_params(self, params):
         logging.info('Setting char lstm params...')
         self.char_lstm_n_units = params['char_lstm_n_units']
-        self.char_lstm_mask_zero = params['char_lstm_mask_zero']
 
     def set_test(self):
         logging.info('Setting test environment...')
@@ -89,7 +91,7 @@ class MWEIdentifier:
                 char_emb_layer = TimeDistributed(
                     Embedding(input_dim=char_embedding.shape[0], output_dim=char_embedding.shape[1],
                               weights=[char_embedding],
-                              trainable=True, mask_zero=self.char_cnn_mask_zero), name='char_embeddings')(
+                              trainable=True, mask_zero=False), name='char_embeddings')(
                     char_emb_input)
                 chars_cnn_layer = TimeDistributed(
                     Conv1D(filters=self.char_filter_size, kernel_size=self.char_window_size, padding='same'),
@@ -105,7 +107,7 @@ class MWEIdentifier:
                 char_emb_layer = TimeDistributed(
                     Embedding(input_dim=char_embedding.shape[0], output_dim=char_embedding.shape[1],
                               weights=[char_embedding],
-                              trainable=True, mask_zero=self.char_lstm_mask_zero), name='char_embeddings')(
+                              trainable=True, mask_zero=True), name='char_embeddings')(
                     char_emb_input)
                 char_layer = TimeDistributed(Bidirectional(LSTM(self.char_lstm_n_units, return_sequences=False)),
                                              name="char_lstm")(
@@ -136,17 +138,17 @@ class MWEIdentifier:
             layers.append(deprel_emb_layer)
 
         if len(layers) >= 2:
-            merged_input = concatenate(layers)
+            embedding_layer = concatenate(layers)
         else:
-            merged_input = layers[0]
+            embedding_layer = layers[0]
 
-        shared_layer = merged_input
-        shared_layer = Bidirectional(LSTM(self.n_units, return_sequences=True, dropout=self._dropout[0],
-                                          recurrent_dropout=self._dropout[1]),
-                                     name='shared_varLSTM')(shared_layer)
+        embedding_layer = Dropout(self.dropout)(embedding_layer)
 
-        output = shared_layer
-        output = TimeDistributed(Dense(self.mwe.n_tags, activation=None))(output)
+        bilstm_layer = Bidirectional(LSTM(self.n_units, return_sequences=True, dropout=self.var_dropout[0],
+                                          recurrent_dropout=self.var_dropout[1]),
+                                     name='shared_varLSTM')(embedding_layer)
+
+        output = TimeDistributed(Dense(self.mwe.n_tags, activation=None))(bilstm_layer)
         crf = CRF(self.mwe.n_tags)  # CRF layer
         output = crf(output)  # output
 
@@ -157,10 +159,13 @@ class MWEIdentifier:
 
     def fit_model(self):
         logging.info('Fitting model...')
+        callbacks = [EarlyStopping(monitor='loss', patience=self.patience)
+                     ]
         self.model.fit(
             self.X_training,
             np.array(self.y),
-            batch_size=self.batch_size, epochs=self.epochs)  # , validation_split=0.2, verbose=1)
+            batch_size=self.batch_size, epochs=self.epochs, callbacks=callbacks,
+            verbose=self.verbose)  # , validation_split=0.2, verbose=1)
 
     def predict(self):
         logging.info('Predicting...')
