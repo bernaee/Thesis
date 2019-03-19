@@ -78,7 +78,7 @@ class MWEPreProcessor:
 
     def to_cupt_with_comments(self):
         comments = self.find_comments_in_cupt(self.test_blind_path)
-        logging.info('Writing to %s...' % self.train_tagged_path)
+        logging.info('Writing to %s...' % self.test_tagged_path)
         lines = ''
         counterC = 0
         while not comments[counterC] == " ":
@@ -100,7 +100,7 @@ class MWEPreProcessor:
                     'XPOS'] + '\t' + row['FEATS'] + '\t' + row['HEAD'] + '\t' + row['DEPREL'] + '\t' + row[
                            'DEPS'] + '\t' + row['MISC'] + '\t' + row['BIO'] + '\n'
             lines += line
-        f = codecs.open(self.train_tagged_path, "w", "utf-8")
+        f = codecs.open(self.test_tagged_path, "w", "utf-8")
         f.write(lines)
         f.close()
 
@@ -509,6 +509,36 @@ class MWEPreProcessor:
                 sent_seq.append(word_seq)
             char_matrix.append(np.array(sent_seq))
         return char_matrix
+
+    def add_spelling_feature_vector(self, word):
+        def include_digits(word):
+            n_of_digits = len([char for char in word if char.isdigit()])
+            res = n_of_digits > 0
+            return res
+
+        def include_punctuation(word):
+            n_of_puncs = len([char for char in word if char.isdigit()])
+            res = n_of_puncs > 0
+            return res
+
+        vector = np.zeros(8)
+
+        if word[0].isupper():  # is initial upper
+            vector[0] = 1
+        if word.isupper():  # is all upper
+            vector[1] = 1
+        if word.islower():  # is all lower
+            vector[2] = 1
+        if word.isdigit():  # is it numeric
+            vector[3] = 1
+        if include_digits(word):  # does it include numeric
+            vector[4] = 1
+        if include_punctuation(word):  # does it include punc
+            vector[5] = 1
+        if word.contains('@'):  # is it email
+            vector[6] = 1
+        if word.contains('https'):  # is it url
+            vector[7] = 1
 
     def prepare_to_lstm(self):
         logging.info('Preparing to lstm..')
