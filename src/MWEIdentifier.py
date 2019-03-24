@@ -37,6 +37,7 @@ class MWEIdentifier:
 
     def set_char_lstm_model_params(self, params):
         logging.info('Setting char lstm params...')
+        self.char_emb_size = params['char_emb_size']
         self.char_lstm_n_units = params['char_lstm_n_units']
 
     def set_test(self):
@@ -45,9 +46,13 @@ class MWEIdentifier:
         self.X_training = {'word_input': self.mwe.X_tr_word}
         self.X_test = [self.mwe.X_te_word]
 
+        if self.model_cfg['SPELLING']:
+            self.X_training['spelling_input'] = self.mwe.X_tr_spelling
+            self.X_test.append(self.mwe.X_te_spelling)
+
         if self.model_cfg['CHAR']:
-            self.X_training['char_input'] = np.array(self.mwe.X_tr_char)
-            self.X_test.append(np.array(self.mwe.X_te_char))
+            self.X_training['char_input'] = self.mwe.X_tr_char
+            self.X_test.append(self.mwe.X_te_char)
 
         if self.model_cfg['POS']:
             self.X_training['pos_input'] = self.mwe.X_tr_pos
@@ -56,6 +61,10 @@ class MWEIdentifier:
         if self.model_cfg['DEPREL']:
             self.X_training['deprel_input'] = self.mwe.X_tr_deprel
             self.X_test.append(self.mwe.X_te_deprel)
+
+        if self.model_cfg['MORPHEME']:
+            self.X_training['morpheme_input'] = self.mwe.X_tr_morpheme
+            self.X_test.append(self.mwe.X_te_morpheme)
 
         self.y = self.mwe.y
 
@@ -74,6 +83,17 @@ class MWEIdentifier:
 
         inputs = [word_emb_input]
         layers = [word_emb_layer]
+
+        if self.model_cfg['SPELLING']:
+            spelling_emb_input = Input(shape=(None,), name='spelling_input')
+            spelling_emb_layer = Embedding(input_dim=self.mwe.spelling_embeddings.shape[0],
+                                           output_dim=self.mwe.spelling_embeddings.shape[1],
+                                           weights=[self.mwe.spelling_embeddings],
+                                           trainable=False, mask_zero=True, input_length=self.mwe.max_sent,
+                                           name='spelling_embeddings')(
+                spelling_emb_input)
+            inputs.append(spelling_emb_input)
+            layers.append(spelling_emb_layer)
 
         if self.model_cfg['CHAR']:
             char_embedding = []
@@ -101,6 +121,8 @@ class MWEIdentifier:
                 inputs.append(char_emb_input)
                 layers.append(char_layer)
 
+
+
             elif self.model_cfg['CHAR'].lower() == 'lstm':
                 char_emb_input = Input(shape=(self.mwe.max_sent, self.mwe.max_char_length), dtype='int32',
                                        name='char_input')
@@ -116,10 +138,10 @@ class MWEIdentifier:
                 layers.append(char_layer)
 
         if self.model_cfg['POS']:
-            pos_embedding = np.identity(len(self.mwe.pos2idx.keys()) + 1)
             pos_emb_input = Input(shape=(None,), name='pos_input')
-            pos_emb_layer = Embedding(input_dim=pos_embedding.shape[0], output_dim=pos_embedding.shape[1],
-                                      weights=[pos_embedding],
+            pos_emb_layer = Embedding(input_dim=self.mwe.pos_embeddings.shape[0],
+                                      output_dim=self.mwe.pos_embeddings.shape[1],
+                                      weights=[self.mwe.pos_embeddings],
                                       trainable=False, mask_zero=True, input_length=self.mwe.max_sent,
                                       name='pos_embeddings')(
                 pos_emb_input)
@@ -127,10 +149,10 @@ class MWEIdentifier:
             layers.append(pos_emb_layer)
 
         if self.model_cfg['DEPREL']:
-            deprel_embedding = np.identity(len(self.mwe.deprel2idx.keys()) + 1)
             deprel_emb_input = Input(shape=(None,), name='deprel_input')
-            deprel_emb_layer = Embedding(input_dim=deprel_embedding.shape[0], output_dim=deprel_embedding.shape[1],
-                                         weights=[deprel_embedding],
+            deprel_emb_layer = Embedding(input_dim=self.mwe.deprel_embeddings.shape[0],
+                                         output_dim=self.mwe.deprel_embeddings.shape[1],
+                                         weights=[self.mwe.deprel_embeddings],
                                          trainable=False, mask_zero=True, input_length=self.mwe.max_sent,
                                          name='deprel_embeddings')(
                 deprel_emb_input)
@@ -142,11 +164,13 @@ class MWEIdentifier:
         else:
             embedding_layer = layers[0]
 
-        embedding_layer = Dropout(self.dropout)(embedding_layer)
+        if self.model_cfg['DROPOUT']:
+            embedding_layer = Dropout(self.dropout)(embedding_layer)
 
-        bilstm_layer = Bidirectional(LSTM(self.n_units, return_sequences=True, dropout=self.var_dropout[0],
-                                          recurrent_dropout=self.var_dropout[1]),
-                                     name='shared_varLSTM')(embedding_layer)
+        bilstm_layer = Bidirectional(
+            LSTM(self.n_units, return_sequences=True, dropout=self.var_dropout[0],
+                 recurrent_dropout=self.var_dropout[1]),
+            name='shared_varLSTM')(embedding_layer)
 
         output = TimeDistributed(Dense(self.mwe.n_tags, activation=None))(bilstm_layer)
         crf = CRF(self.mwe.n_tags)  # CRF layer
