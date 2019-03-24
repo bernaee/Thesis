@@ -10,6 +10,10 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.utils import to_categorical
 from src.WordEmbedding import read_fastText_word_embeddings
 
+CI = {'ID': 0, 'FORM': 1, 'LEMMA': 2, 'UPOS': 3, 'XPOS': 4,
+      'FEATS': 5, 'HEAD': 6, 'DEPREL': 7, 'DEPS': 8, 'MISC': 9,
+      'BIO': -1}
+
 
 class MWEPreProcessor:
     def __init__(self, language, input_path, train_output_path, test_output_path):
@@ -34,6 +38,12 @@ class MWEPreProcessor:
         self.model_pkl_path = os.path.join(self.test_output_path, 'model.pkl')
         self.test_tagged_path = os.path.join(self.test_output_path, 'test_tagged.cupt')
 
+    def update_test_output_path(self, test_output_path):
+        self.test_output_path = test_output_path
+        self.test_pkl_path = os.path.join(self.test_output_path, 'test.pkl')
+        self.model_pkl_path = os.path.join(self.test_output_path, 'model.pkl')
+        self.test_tagged_path = os.path.join(self.test_output_path, 'test_tagged.cupt')
+
     def read_corpus(self, path):
         corpus_file = io.open(path, "r", encoding="utf-8")
         corpus = []
@@ -45,7 +55,17 @@ class MWEPreProcessor:
                                   columns=['ID', 'FORM', 'LEMMA', 'UPOS', 'XPOS', 'FEATS', 'HEAD', 'DEPREL',
                                            'DEPS', 'MISC',
                                            'PARSEME:MWE'])
+
         return new_corpus
+
+    def remove_duplicate_rows(self, corpus):
+        corpus['ID_tag'] = copy.deepcopy(corpus['ID'].apply(
+            lambda x: 'extra' if bool(re.match("\d+-\d+", x)) else x))
+        if self.language == 'TR':
+            corpus.loc[corpus['FORM'] == '_', 'ID_tag'] = 'extra'
+        additional_rows = corpus.loc[corpus['ID_tag'] == 'extra']
+        corpus = corpus.loc[corpus['ID_tag'] != 'extra']
+        return corpus, additional_rows
 
     def to_cupt(self, df, cupt_path):
         logging.info('Writing to %s...' % cupt_path)
@@ -108,7 +128,7 @@ class MWEPreProcessor:
         sentence_indexes = [-1] + list(corpus.loc[corpus['BIO'] == 'space'].index)
         sentences = []
         for i, sentence_idx in enumerate(sentence_indexes[:-1]):
-            sentence = corpus[sentence_idx + 1:sentence_indexes[i + 1]]
+            sentence = corpus.loc[sentence_idx + 1:sentence_indexes[i + 1]].iloc[:-1]
             tr_sentence = []
             for j, row in sentence.iterrows():
                 tr_sentence.append((row['ID'], row['FORM'], row['LEMMA'], row['UPOS'], row['XPOS'], row['FEATS'],
@@ -134,6 +154,10 @@ class MWEPreProcessor:
 
     def set_test_corpus(self):
         self._test_corpus = self.read_corpus(self.test_blind_path)
+
+    def preprocess_corpus(self):
+        self._train_corpus, self._train_rows = self.remove_duplicate_rows(self._train_corpus)
+        self._test_corpus, self._test_rows = self.remove_duplicate_rows(self._test_corpus)
 
     def set_word_embeddings(self, word_embeddings):
         self.word_embeddings = word_embeddings
@@ -400,6 +424,8 @@ class MWEPreProcessor:
         self.to_cupt(self._train_corpus, self.train_tagged_path)
 
     def convert_gappy_tag(self):
+        self._test_corpus = copy.deepcopy(pd.concat([self._test_corpus, self._test_rows]).sort_index())
+        self._test_corpus.loc[self._test_corpus['ID_tag'] == 'extra', 'BIO'] = 'O'
         self._test_corpus['PARSEME:MWE'] = copy.deepcopy(self._test_corpus['BIO'])
         sentence_indexes = [-1] + list(self._test_corpus.loc[self._test_corpus['BIO'] == 'space'].index)
 
@@ -503,14 +529,23 @@ class MWEPreProcessor:
                 word_seq = []
                 for j in range(self.max_char_length):
                     try:
-                        word_seq.append(self.char2idx.get(sentence[i][1][j]))
+                        word_seq.append(self.char2idx.get(sentence[i][CI['FORM']][j]))
                     except:
                         word_seq.append(self.char2idx.get("</s>"))
                 sent_seq.append(word_seq)
-            char_matrix.append(np.array(sent_seq))
+            char_matrix.append(sent_seq)  # np.array(sent_seq)
+        char_matrix = np.asarray(char_matrix)
         return char_matrix
 
-    def add_spelling_feature_vector(self, word):
+    def create_spelling_embeddings(self):
+        spelling_embeddings = []
+        for word, idx in self.word2idx.items():
+            spelling_feature_vector = self.get_spelling_feature_vector(word)
+            spelling_embeddings.append(spelling_feature_vector)
+        spelling_embeddings = np.asarray(spelling_embeddings)
+        self.spelling_embeddings = spelling_embeddings
+
+    def get_spelling_feature_vector(self, word):
         def include_digits(word):
             n_of_digits = len([char for char in word if char.isdigit()])
             res = n_of_digits > 0
@@ -535,10 +570,28 @@ class MWEPreProcessor:
             vector[4] = 1
         if include_punctuation(word):  # does it include punc
             vector[5] = 1
-        if word.contains('@'):  # is it email
+        if '@' in word:  # is it email
             vector[6] = 1
-        if word.contains('https'):  # is it url
+        if 'http' in word:  # is it url
             vector[7] = 1
+
+        return vector
+
+    def create_morpheme_matrix(self, sentences):
+        morpheme_matrix = []
+        for sentence in sentences:
+            sent_seq = []
+            for i in range(self.max_sent):
+                word_seq = []
+                for j in range(self.max_morpheme_len):
+                    try:
+                        word_seq.append(self.morpheme2idx.get(sentence[i][CI['FEATS']][j]))
+                    except:
+                        word_seq.append(self.morpheme2idx.get("</s>"))
+                sent_seq.append(word_seq)
+            morpheme_matrix.append(sent_seq)  # np.array(sent_seq)
+        char_matrix = np.asarray(morpheme_matrix)
+        return char_matrix
 
     def prepare_to_lstm(self):
         logging.info('Preparing to lstm..')
@@ -557,6 +610,13 @@ class MWEPreProcessor:
         self.tags = list(set(self._train_corpus['BIO']))
         self.tags.remove("space")
 
+        self.feats = list(set(self._train_corpus['FEATS']) | set(self._test_corpus['FEATS']))
+        self.morphemes = [feat.split('|') for feat in self.feats]
+        self.max_morpheme_len = max([len(m) for m in self.morphemes])
+        self.morphemes = list(set([j for i in self.morphemes for j in i]))
+        self.morphemes.remove('_')
+        self.morphemes.remove('space')
+
         self.pos = []
         self.pos.append("</s>")
         self.pos = self.pos + list(set(self._train_corpus['UPOS']) | set(self._test_corpus['UPOS']))
@@ -574,9 +634,11 @@ class MWEPreProcessor:
         self.n_words = len(self.words)
         self.n_chars = len(self.chars)
         self.n_tags = len(self.tags)
+        self.n_morphemes = len(self.morphemes)
 
         self.word2idx = {w: i for i, w in enumerate(self.words)}
         self.char2idx = {c: i for i, c in enumerate(self.chars)}
+        self.morpheme2idx = {t: i for i, t in enumerate(self.morphemes)}
         self.pos2idx = {t: i for i, t in enumerate(self.pos)}
         self.deprel2idx = {t: i for i, t in enumerate(self.deprel)}
         self.tag2idx = {t: i for i, t in enumerate(self.tags)}
@@ -595,24 +657,38 @@ class MWEPreProcessor:
         else:
             self.max_char_length = max_char_length
 
-        self.X_tr_word = [[self.word2idx[w[1]] for w in s] for s in self.train_sentences]
+        self.n_spelling_features = 8
+        self.create_spelling_embeddings()
+
+        self.pos_embeddings = np.identity(len(self.pos2idx.keys()) + 1)
+        self.deprel_embeddings = np.identity(len(self.deprel2idx.keys()) + 1)
+
+        self.X_tr_word = [[self.word2idx[w[CI['FORM']]] for w in s] for s in self.train_sentences]
         self.X_tr_word = pad_sequences(maxlen=self.max_sent, sequences=self.X_tr_word, padding="post", value=0)
-        self.X_te_word = [[self.word2idx[w[1]] for w in s] for s in self.test_sentences]
+        self.X_te_word = [[self.word2idx[w[CI['FORM']]] for w in s] for s in self.test_sentences]
         self.X_te_word = pad_sequences(maxlen=self.max_sent, sequences=self.X_te_word, padding="post", value=0)
+
+        self.X_tr_spelling = [[self.word2idx[w[CI['FORM']]] for w in s] for s in self.train_sentences]
+        self.X_tr_spelling = pad_sequences(maxlen=self.max_sent, sequences=self.X_tr_spelling, padding="post", value=0)
+        self.X_te_spelling = [[self.word2idx[w[CI['FORM']]] for w in s] for s in self.test_sentences]
+        self.X_te_spelling = pad_sequences(maxlen=self.max_sent, sequences=self.X_te_spelling, padding="post", value=0)
 
         self.X_tr_char = self.create_char_matrix(self.train_sentences)
         self.X_te_char = self.create_char_matrix(self.test_sentences)
 
-        self.X_tr_pos = [[self.pos2idx[w[3]] for w in s] for s in self.train_sentences]
+        self.X_tr_morpheme = self.create_morpheme_matrix(self.train_sentences)
+        self.X_te_morpheme = self.create_morpheme_matrix(self.test_sentences)
+
+        self.X_tr_pos = [[self.pos2idx[w[CI['UPOS']]] for w in s] for s in self.train_sentences]
         self.X_tr_pos = pad_sequences(maxlen=self.max_sent, sequences=self.X_tr_pos, padding="post", value=0)
-        self.X_te_pos = [[self.pos2idx[w[3]] for w in s] for s in self.test_sentences]
+        self.X_te_pos = [[self.pos2idx[w[CI['UPOS']]] for w in s] for s in self.test_sentences]
         self.X_te_pos = pad_sequences(maxlen=self.max_sent, sequences=self.X_te_pos, padding="post", value=0)
 
-        self.X_tr_deprel = [[self.deprel2idx[w[7]] for w in s] for s in self.train_sentences]
+        self.X_tr_deprel = [[self.deprel2idx[w[CI['DEPREL']]] for w in s] for s in self.train_sentences]
         self.X_tr_deprel = pad_sequences(maxlen=self.max_sent, sequences=self.X_tr_deprel, padding="post", value=0)
-        self.X_te_deprel = [[self.deprel2idx[w[7]] for w in s] for s in self.test_sentences]
+        self.X_te_deprel = [[self.deprel2idx[w[CI['DEPREL']]] for w in s] for s in self.test_sentences]
         self.X_te_deprel = pad_sequences(maxlen=self.max_sent, sequences=self.X_te_deprel, padding="post", value=0)
 
-        self.y = [[self.tag2idx[w[-1]] for w in s] for s in self.train_sentences]
+        self.y = [[self.tag2idx[w[CI['BIO']]] for w in s] for s in self.train_sentences]
         self.y = pad_sequences(maxlen=self.max_sent, sequences=self.y, padding="post", value=self.tag2idx["O"])
         self.y = [to_categorical(i, num_classes=self.n_tags) for i in self.y]
