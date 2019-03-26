@@ -40,6 +40,17 @@ class MWEIdentifier:
         self.char_emb_size = params['char_emb_size']
         self.char_lstm_n_units = params['char_lstm_n_units']
 
+    def set_morpheme_cnn_model_params(self, params):
+        logging.info('Setting morpheme cnn params...')
+        self.morp_emb_size = params['morp_emb_size']
+        self.morp_window_size = params['morp_window_size']
+        self.morp_filter_size = params['morp_filter_size']
+
+    def set_morpheme_lstm_model_params(self, params):
+        logging.info('Setting morpheme lstm params...')
+        self.morp_emb_size = params['morp_emb_size']
+        self.morp_lstm_n_units = params['morp_lstm_n_units']
+
     def set_test(self):
         logging.info('Setting test environment...')
 
@@ -136,6 +147,48 @@ class MWEIdentifier:
                     char_emb_layer)
                 inputs.append(char_emb_input)
                 layers.append(char_layer)
+
+        if self.model_cfg['MORPHEME']:
+            morp_embedding = []
+            for morp in self.mwe.morphemes:
+                limit = math.sqrt(3.0 / self.morp_emb_size)
+                morp_emb_vector = np.random.uniform(-limit, limit, self.morp_emb_size)
+                morp_embedding.append(morp_emb_vector)
+
+            morp_embedding[0] = np.zeros(self.morp_emb_size)  # Zero padding
+            morp_embedding = np.asarray(morp_embedding)
+
+            if self.model_cfg['MORPHEME'].lower() == 'cnn':
+                morp_emb_input = Input(shape=(self.mwe.max_sent, self.mwe.max_morpheme_len), dtype='int32',
+                                       name='morp_input')
+                morp_emb_layer = TimeDistributed(
+                    Embedding(input_dim=morp_embedding.shape[0], output_dim=morp_embedding.shape[1],
+                              weights=[morp_embedding],
+                              trainable=True, mask_zero=False), name='morp_embeddings')(
+                    morp_emb_input)
+                morp_cnn_layer = TimeDistributed(
+                    Conv1D(filters=self.char_filter_size, kernel_size=self.morp_window_size, padding='same'),
+                    name="morp_cnn")(
+                    morp_emb_layer)
+                morp_layer = TimeDistributed(GlobalMaxPooling1D(), name="morp_pooling")(morp_cnn_layer)
+                inputs.append(morp_emb_input)
+                layers.append(morp_layer)
+
+
+
+            elif self.model_cfg['MORPHEME'].lower() == 'lstm':
+                morp_emb_input = Input(shape=(self.mwe.max_sent, self.mwe.max_morpheme_len), dtype='int32',
+                                       name='morp_input')
+                morp_emb_layer = TimeDistributed(
+                    Embedding(input_dim=morp_embedding.shape[0], output_dim=morp_embedding.shape[1],
+                              weights=[morp_embedding],
+                              trainable=True, mask_zero=True), name='morp_embeddings')(
+                    morp_emb_input)
+                morp_layer = TimeDistributed(Bidirectional(LSTM(self.morp_lstm_n_units, return_sequences=False)),
+                                             name="morp_lstm")(
+                    morp_emb_layer)
+                inputs.append(morp_emb_input)
+                layers.append(morp_layer)
 
         if self.model_cfg['POS']:
             pos_emb_input = Input(shape=(None,), name='pos_input')
