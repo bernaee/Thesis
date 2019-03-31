@@ -3,8 +3,7 @@ import argparse
 
 from src.Operations import load_pickle, dump_pickle
 from src.Logger import get_logger
-from src.Parameters import model_params, model_cfg, char_trigram_cnn_model_params, \
-    char_lstm_model_params
+from src.Parameters import *
 from src.MWEPreProcessor import MWEPreProcessor
 from src.MWEIdentifier import MWEIdentifier
 
@@ -88,6 +87,8 @@ mwe_identifier.set_model_cfg(model_cfg[model_name])
 mwe_identifier.set_params(model_params[lang])
 mwe_identifier.set_char_cnn_model_params(char_trigram_cnn_model_params)
 mwe_identifier.set_char_lstm_model_params(char_lstm_model_params)
+mwe_identifier.set_morpheme_cnn_model_params(morpheme_trigram_cnn_model_params)
+mwe_identifier.set_morpheme_lstm_model_params(morpheme_lstm_model_params)
 mwe_identifier.set_test()
 mwe_identifier.build_model()
 mwe_identifier.fit_model()
