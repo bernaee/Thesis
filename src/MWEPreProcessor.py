@@ -582,16 +582,17 @@ class MWEPreProcessor:
         for sentence in sentences:
             sent_seq = []
             for i in range(self.max_sent):
-                word_seq = []
+                morpheme_seq = []
                 for j in range(self.max_morpheme_len):
                     try:
-                        word_seq.append(self.morpheme2idx.get(sentence[i][CI['FEATS']][j]))
+                        feats = sentence[i][CI['FEATS']].split('|')
+                        morpheme_seq.append(self.morpheme2idx.get(feats[j]))
                     except:
-                        word_seq.append(self.morpheme2idx.get("</s>"))
-                sent_seq.append(word_seq)
+                        morpheme_seq.append(self.morpheme2idx.get("</s>"))
+                sent_seq.append(morpheme_seq)
             morpheme_matrix.append(sent_seq)  # np.array(sent_seq)
-        char_matrix = np.asarray(morpheme_matrix)
-        return char_matrix
+        morpheme_matrix = np.asarray(morpheme_matrix)
+        return morpheme_matrix
 
     def prepare_to_lstm(self):
         logging.info('Preparing to lstm..')
@@ -614,8 +615,8 @@ class MWEPreProcessor:
         self.morphemes = [feat.split('|') for feat in self.feats]
         self.max_morpheme_len = max([len(m) for m in self.morphemes])
         self.morphemes = list(set([j for i in self.morphemes for j in i]))
-        self.morphemes.remove('_')
         self.morphemes.remove('space')
+        self.morphemes = ["</s>"] + self.morphemes
 
         self.pos = []
         self.pos.append("</s>")
