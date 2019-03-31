@@ -53,27 +53,32 @@ class MWEIdentifier:
 
     def set_test(self):
         logging.info('Setting test environment...')
-
+        self.mwe.set_model_word_embeddings(self)
         self.X_training = {'word_input': self.mwe.X_tr_word}
         self.X_test = [self.mwe.X_te_word]
 
         if self.model_cfg['SPELLING']:
+            self.mwe.set_model_spelling_embeddings(self)
             self.X_training['spelling_input'] = self.mwe.X_tr_spelling
             self.X_test.append(self.mwe.X_te_spelling)
 
         if self.model_cfg['CHAR']:
+            self.mwe.set_model_char_embeddings(self)
             self.X_training['char_input'] = self.mwe.X_tr_char
             self.X_test.append(self.mwe.X_te_char)
 
         if self.model_cfg['POS']:
+            self.mwe.set_model_pos_embeddings(self)
             self.X_training['pos_input'] = self.mwe.X_tr_pos
             self.X_test.append(self.mwe.X_te_pos)
 
         if self.model_cfg['DEPREL']:
+            self.mwe.set_model_deprel_embeddings(self)
             self.X_training['deprel_input'] = self.mwe.X_tr_deprel
             self.X_test.append(self.mwe.X_te_deprel)
 
         if self.model_cfg['MORPHEME']:
+            self.mwe.set_model_morpheme_embeddings(self)
             self.X_training['morpheme_input'] = self.mwe.X_tr_morpheme
             self.X_test.append(self.mwe.X_te_morpheme)
 

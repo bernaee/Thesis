@@ -596,17 +596,16 @@ class MWEPreProcessor:
 
     def prepare_to_lstm(self):
         logging.info('Preparing to lstm..')
-
         self.train_sentences = self.read_sentences(self._train_corpus)
         self.test_sentences = self.read_sentences(self._test_corpus)
 
         self.words = []
         self.words.append("</s>")
         self.words.append("<UNK>")
-        self.words = self.words + list(set(self._train_corpus['FORM']) | set(
-            self._test_corpus['FORM']))  # since cannot keep all word embeddings in memory
         self.tr_words = self.words + list(set(self._train_corpus['FORM']))
         self.test_words = self.words + list(set(self._test_corpus['FORM']))
+        self.words = self.words + list(set(self._train_corpus['FORM']) | set(
+            self._test_corpus['FORM']))  # since cannot keep all word embeddings in memory
 
         self.tags = list(set(self._train_corpus['BIO']))
         self.tags.remove("space")
@@ -664,32 +663,43 @@ class MWEPreProcessor:
         self.pos_embeddings = np.identity(len(self.pos2idx.keys()) + 1)
         self.deprel_embeddings = np.identity(len(self.deprel2idx.keys()) + 1)
 
+    def add_crf_features(self):
+        self._train_corpus['FORM_RIGHT'] = self._train_corpus['FORM'].shift(-1)
+        self._train_corpus['FORM_LEFT'] = self._train_corpus['FORM'].shift(1)
+
+    def set_model_word_embeddings(self):
         self.X_tr_word = [[self.word2idx[w[CI['FORM']]] for w in s] for s in self.train_sentences]
         self.X_tr_word = pad_sequences(maxlen=self.max_sent, sequences=self.X_tr_word, padding="post", value=0)
         self.X_te_word = [[self.word2idx[w[CI['FORM']]] for w in s] for s in self.test_sentences]
         self.X_te_word = pad_sequences(maxlen=self.max_sent, sequences=self.X_te_word, padding="post", value=0)
 
+    def set_model_spelling_embeddings(self):
         self.X_tr_spelling = [[self.word2idx[w[CI['FORM']]] for w in s] for s in self.train_sentences]
         self.X_tr_spelling = pad_sequences(maxlen=self.max_sent, sequences=self.X_tr_spelling, padding="post", value=0)
         self.X_te_spelling = [[self.word2idx[w[CI['FORM']]] for w in s] for s in self.test_sentences]
         self.X_te_spelling = pad_sequences(maxlen=self.max_sent, sequences=self.X_te_spelling, padding="post", value=0)
 
+    def set_model_char_embeddings(self):
         self.X_tr_char = self.create_char_matrix(self.train_sentences)
         self.X_te_char = self.create_char_matrix(self.test_sentences)
 
+    def set_model_morpheme_embeddings(self):
         self.X_tr_morpheme = self.create_morpheme_matrix(self.train_sentences)
         self.X_te_morpheme = self.create_morpheme_matrix(self.test_sentences)
 
+    def set_model_pos_embeddings(self):
         self.X_tr_pos = [[self.pos2idx[w[CI['UPOS']]] for w in s] for s in self.train_sentences]
         self.X_tr_pos = pad_sequences(maxlen=self.max_sent, sequences=self.X_tr_pos, padding="post", value=0)
         self.X_te_pos = [[self.pos2idx[w[CI['UPOS']]] for w in s] for s in self.test_sentences]
         self.X_te_pos = pad_sequences(maxlen=self.max_sent, sequences=self.X_te_pos, padding="post", value=0)
 
+    def set_model_deprel_embeddings(self):
         self.X_tr_deprel = [[self.deprel2idx[w[CI['DEPREL']]] for w in s] for s in self.train_sentences]
         self.X_tr_deprel = pad_sequences(maxlen=self.max_sent, sequences=self.X_tr_deprel, padding="post", value=0)
         self.X_te_deprel = [[self.deprel2idx[w[CI['DEPREL']]] for w in s] for s in self.test_sentences]
         self.X_te_deprel = pad_sequences(maxlen=self.max_sent, sequences=self.X_te_deprel, padding="post", value=0)
 
+    def set_model_tags(self):
         self.y = [[self.tag2idx[w[CI['BIO']]] for w in s] for s in self.train_sentences]
         self.y = pad_sequences(maxlen=self.max_sent, sequences=self.y, padding="post", value=self.tag2idx["O"])
         self.y = [to_categorical(i, num_classes=self.n_tags) for i in self.y]
