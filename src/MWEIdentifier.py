@@ -160,7 +160,7 @@ class MWEIdentifier:
 
             if self.model_cfg['MORPHEME'].lower() == 'cnn':
                 morp_emb_input = Input(shape=(self.mwe.max_sent, self.mwe.max_morpheme_len), dtype='int32',
-                                       name='morp_input')
+                                       name='morpheme_input')
                 morp_emb_layer = TimeDistributed(
                     Embedding(input_dim=morp_embedding.shape[0], output_dim=morp_embedding.shape[1],
                               weights=[morp_embedding],
@@ -178,7 +178,7 @@ class MWEIdentifier:
 
             elif self.model_cfg['MORPHEME'].lower() == 'lstm':
                 morp_emb_input = Input(shape=(self.mwe.max_sent, self.mwe.max_morpheme_len), dtype='int32',
-                                       name='morp_input')
+                                       name='morpheme_input')
                 morp_emb_layer = TimeDistributed(
                     Embedding(input_dim=morp_embedding.shape[0], output_dim=morp_embedding.shape[1],
                               weights=[morp_embedding],
