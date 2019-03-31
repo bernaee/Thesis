@@ -1,12 +1,16 @@
-from keras.preprocessing.sequence import pad_sequences
-from keras.utils import to_categorical
 from keras.models import Model, Input
 from keras.layers import LSTM, Embedding, Dense, TimeDistributed, Bidirectional
 from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
+from keras.preprocessing.sequence import pad_sequences
+from keras.utils import to_categorical
 from keras.layers import *
 from keras_contrib.layers import CRF
 import logging
 import math
+
+CI = {'ID': 0, 'FORM': 1, 'LEMMA': 2, 'UPOS': 3, 'XPOS': 4,
+      'FEATS': 5, 'HEAD': 6, 'DEPREL': 7, 'DEPS': 8, 'MISC': 9,
+      'BIO': -1}
 
 
 class MWEIdentifier:
@@ -57,39 +61,78 @@ class MWEIdentifier:
         self.morp_emb_size = params['morp_emb_size']
         self.morp_lstm_n_units = params['morp_lstm_n_units']
 
+    def set_model_word_embeddings(self):
+        self.X_tr_word = [[self.mwe.word2idx[w[CI['FORM']]] for w in s] for s in self.mwe.train_sentences]
+        self.X_tr_word = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_tr_word, padding="post", value=0)
+        self.X_te_word = [[self.mwe.word2idx[w[CI['FORM']]] for w in s] for s in self.mwe.test_sentences]
+        self.X_te_word = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_te_word, padding="post", value=0)
+
+    def set_model_spelling_embeddings(self):
+        self.X_tr_spelling = [[self.mwe.word2idx[w[CI['FORM']]] for w in s] for s in self.mwe.train_sentences]
+        self.X_tr_spelling = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_tr_spelling, padding="post",
+                                           value=0)
+        self.X_te_spelling = [[self.mwe.word2idx[w[CI['FORM']]] for w in s] for s in self.mwe.test_sentences]
+        self.X_te_spelling = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_te_spelling, padding="post",
+                                           value=0)
+
+    def set_model_char_embeddings(self):
+        self.X_tr_char = self.mwe.create_char_matrix(self.mwe.train_sentences)
+        self.X_te_char = self.mwe.create_char_matrix(self.mwe.test_sentences)
+
+    def set_model_morpheme_embeddings(self):
+        self.X_tr_morpheme = self.mwe.create_morpheme_matrix(self.mwe.train_sentences)
+        self.X_te_morpheme = self.mwe.create_morpheme_matrix(self.mwe.test_sentences)
+
+    def set_model_pos_embeddings(self):
+        self.X_tr_pos = [[self.mwe.pos2idx[w[CI['UPOS']]] for w in s] for s in self.mwe.train_sentences]
+        self.X_tr_pos = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_tr_pos, padding="post", value=0)
+        self.X_te_pos = [[self.mwe.pos2idx[w[CI['UPOS']]] for w in s] for s in self.mwe.test_sentences]
+        self.X_te_pos = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_te_pos, padding="post", value=0)
+
+    def set_model_deprel_embeddings(self):
+        self.X_tr_deprel = [[self.mwe.deprel2idx[w[CI['DEPREL']]] for w in s] for s in self.mwe.train_sentences]
+        self.X_tr_deprel = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_tr_deprel, padding="post", value=0)
+        self.X_te_deprel = [[self.mwe.deprel2idx[w[CI['DEPREL']]] for w in s] for s in self.mwe.test_sentences]
+        self.X_te_deprel = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_te_deprel, padding="post", value=0)
+
+    def set_model_tags(self):
+        self.y = [[self.mwe.tag2idx[w[CI['BIO']]] for w in s] for s in self.mwe.train_sentences]
+        self.y = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.y, padding="post", value=self.mwe.tag2idx["O"])
+        self.y = [to_categorical(i, num_classes=self.mwe.n_tags) for i in self.y]
+
     def set_test(self):
         logging.info('Setting test environment...')
-        self.mwe.set_model_word_embeddings()
-        self.X_training = {'word_input': self.mwe.X_tr_word}
-        self.X_test = [self.mwe.X_te_word]
+        self.set_model_word_embeddings()
+        self.X_training = {'word_input': self.X_tr_word}
+        self.X_test = [self.X_te_word]
 
         if self.model_cfg['SPELLING']:
-            self.mwe.set_model_spelling_embeddings()
-            self.X_training['spelling_input'] = self.mwe.X_tr_spelling
-            self.X_test.append(self.mwe.X_te_spelling)
+            self.set_model_spelling_embeddings()
+            self.X_training['spelling_input'] = self.X_tr_spelling
+            self.X_test.append(self.X_te_spelling)
 
         if self.model_cfg['CHAR']:
-            self.mwe.set_model_char_embeddings()
-            self.X_training['char_input'] = self.mwe.X_tr_char
-            self.X_test.append(self.mwe.X_te_char)
+            self.set_model_char_embeddings()
+            self.X_training['char_input'] = self.X_tr_char
+            self.X_test.append(self.X_te_char)
 
         if self.model_cfg['POS']:
-            self.mwe.set_model_pos_embeddings()
-            self.X_training['pos_input'] = self.mwe.X_tr_pos
-            self.X_test.append(self.mwe.X_te_pos)
+            self.set_model_pos_embeddings()
+            self.X_training['pos_input'] = self.X_tr_pos
+            self.X_test.append(self.X_te_pos)
 
         if self.model_cfg['DEPREL']:
-            self.mwe.set_model_deprel_embeddings()
-            self.X_training['deprel_input'] = self.mwe.X_tr_deprel
-            self.X_test.append(self.mwe.X_te_deprel)
+            self.set_model_deprel_embeddings()
+            self.X_training['deprel_input'] = self.X_tr_deprel
+            self.X_test.append(self.X_te_deprel)
 
         if self.model_cfg['MORPHEME']:
-            self.mwe.set_model_morpheme_embeddings()
-            self.X_training['morpheme_input'] = self.mwe.X_tr_morpheme
-            self.X_test.append(self.mwe.X_te_morpheme)
-            
-        self.mwe.set_model_tags()
-        self.y = self.mwe.y
+            self.set_model_morpheme_embeddings()
+            self.X_training['morpheme_input'] = self.X_tr_morpheme
+            self.X_test.append(self.X_te_morpheme)
+
+        self.set_model_tags()
+        self.y = self.y
 
     def build_model(self):
         self.build_model_with_pretrained_embedding()
