@@ -38,10 +38,12 @@ model_params = {
     'TR': {'n_units': 20, 'dropout': 0.2, 'var_dropout': [0.1, 0.1], 'batch_size': 64, 'epochs': 15, 'patience': 5,
            'verbose': 2}
 }
-char_trigram_cnn_model_params = {'char_emb_size': 30, 'char_window_size': 3, 'char_filter_size': 30}
-morpheme_trigram_cnn_model_params = {'morp_emb_size': 30, 'morp_window_size': 3, 'morp_filter_size': 30}
-char_lstm_model_params = {'char_emb_size': 30, 'char_lstm_n_units': 25}
-morpheme_lstm_model_params = {'morp_emb_size': 30, 'morp_lstm_n_units': 25}
+
+embedding_params = {
+    'char_trigram_cnn': {'char_emb_size': 30, 'char_window_size': 3, 'char_filter_size': 30},
+    'morpheme_trigram_cnn': {'morp_emb_size': 30, 'morp_window_size': 3, 'morp_filter_size': 30},
+    'char_lstm': {'char_emb_size': 30, 'char_lstm_n_units': 25},
+    'morpheme_lstm': {'morp_emb_size': 30, 'morp_lstm_n_units': 25}}
 
 model_cfg = {
     '01': {'SPELLING': False, 'CHAR': False, 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': False},

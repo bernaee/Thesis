@@ -29,6 +29,12 @@ class MWEIdentifier:
         self.patience = params['patience']
         self.verbose = params['verbose']
 
+    def set_embedding_params(self, params):
+        self.set_char_cnn_model_params(params['char_trigram_cnn'])
+        self.set_char_lstm_model_params(params['char_lstm'])
+        self.set_morpheme_cnn_model_params(params['morpheme_trigram_cnn'])
+        self.set_morpheme_lstm_model_params(params['morpheme_lstm'])
+
     def set_char_cnn_model_params(self, params):
         logging.info('Setting char cnn params...')
         self.char_emb_size = params['char_emb_size']
@@ -53,35 +59,36 @@ class MWEIdentifier:
 
     def set_test(self):
         logging.info('Setting test environment...')
-        self.mwe.set_model_word_embeddings(self)
+        self.mwe.set_model_word_embeddings()
         self.X_training = {'word_input': self.mwe.X_tr_word}
         self.X_test = [self.mwe.X_te_word]
 
         if self.model_cfg['SPELLING']:
-            self.mwe.set_model_spelling_embeddings(self)
+            self.mwe.set_model_spelling_embeddings()
             self.X_training['spelling_input'] = self.mwe.X_tr_spelling
             self.X_test.append(self.mwe.X_te_spelling)
 
         if self.model_cfg['CHAR']:
-            self.mwe.set_model_char_embeddings(self)
+            self.mwe.set_model_char_embeddings()
             self.X_training['char_input'] = self.mwe.X_tr_char
             self.X_test.append(self.mwe.X_te_char)
 
         if self.model_cfg['POS']:
-            self.mwe.set_model_pos_embeddings(self)
+            self.mwe.set_model_pos_embeddings()
             self.X_training['pos_input'] = self.mwe.X_tr_pos
             self.X_test.append(self.mwe.X_te_pos)
 
         if self.model_cfg['DEPREL']:
-            self.mwe.set_model_deprel_embeddings(self)
+            self.mwe.set_model_deprel_embeddings()
             self.X_training['deprel_input'] = self.mwe.X_tr_deprel
             self.X_test.append(self.mwe.X_te_deprel)
 
         if self.model_cfg['MORPHEME']:
-            self.mwe.set_model_morpheme_embeddings(self)
+            self.mwe.set_model_morpheme_embeddings()
             self.X_training['morpheme_input'] = self.mwe.X_tr_morpheme
             self.X_test.append(self.mwe.X_te_morpheme)
-
+            
+        self.mwe.set_model_tags()
         self.y = self.mwe.y
 
     def build_model(self):
