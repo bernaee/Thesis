@@ -303,11 +303,11 @@ class MWEIdentifier:
         logging.info('Predicting...')
         predicted_tags = []
         preds = self.model.predict(self.X_test)
-        for i in range(self.mwe.X_te_word.shape[0]):
+        for i in range(self.X_te_word.shape[0]):
             p = preds[i]
             p = np.argmax(p, axis=-1)
             tp = []
-            for w, pred in zip(self.mwe.X_te_word[i], p):
+            for w, pred in zip(self.X_te_word[i], p):
                 if w != 0:
                     tp.append(self.mwe.tags[pred])
             predicted_tags.append(tp)
