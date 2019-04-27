@@ -41,16 +41,42 @@ model_params = {
 
 embedding_params = {
     'char_trigram_cnn': {'char_emb_size': 30, 'char_window_size': 3, 'char_filter_size': 30},
-    'morpheme_trigram_cnn': {'morp_emb_size': 30, 'morp_window_size': 3, 'morp_filter_size': 30},
     'char_lstm': {'char_emb_size': 30, 'char_lstm_n_units': 25},
-    'morpheme_lstm': {'morp_emb_size': 30, 'morp_lstm_n_units': 25}}
+    'morpheme_lstm': {'mor_emb_size': 30, 'mor_lstm_n_units': 25},
+    'morpheme_char_lstm': {'mor_char_emb_size': 30, 'mor_char_lstm_n_units': 25}}
 
 model_cfg = {
-    '01': {'SPELLING': False, 'CHAR': False, 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': False},
-    '02': {'SPELLING': True, 'CHAR': False, 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': False},
-    '03': {'SPELLING': False, 'CHAR': 'cnn', 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': False},
-    '04': {'SPELLING': False, 'CHAR': 'cnn', 'POS': False, 'DEPREL': False, 'DROPOUT': True, 'MORPHEME': False},
-    '05': {'SPELLING': False, 'CHAR': 'lstm', 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': False},
-    '06': {'SPELLING': False, 'CHAR': 'lstm', 'POS': False, 'DEPREL': False, 'DROPOUT': True, 'MORPHEME': False},
-    '07': {'SPELLING': False, 'CHAR': False, 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': 'lstm'},
-    '08': {'SPELLING': False, 'CHAR': False, 'POS': False, 'DEPREL': False, 'DROPOUT': True, 'MORPHEME': 'lstm'}, }
+    '01': {'SPELLING': False, 'CHAR': False, 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': False,
+           'MORPHEME-CHAR': False,
+           'CRF': False},
+    '02': {'SPELLING': True, 'CHAR': False, 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': False,
+           'MORPHEME-CHAR': False,
+           'CRF': False},
+    '03': {'SPELLING': False, 'CHAR': 'cnn', 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': False,
+           'MORPHEME-CHAR': False,
+           'CRF': False},
+    '04': {'SPELLING': False, 'CHAR': 'cnn', 'POS': False, 'DEPREL': False, 'DROPOUT': True, 'MORPHEME': False,
+           'MORPHEME-CHAR': False,
+           'CRF': False},
+    '05': {'SPELLING': False, 'CHAR': 'lstm', 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': False,
+           'MORPHEME-CHAR': False,
+           'CRF': False},
+    '06': {'SPELLING': False, 'CHAR': 'lstm', 'POS': False, 'DEPREL': False, 'DROPOUT': True, 'MORPHEME': False,
+           'MORPHEME-CHAR': False,
+           'CRF': False},
+    '07': {'SPELLING': False, 'CHAR': False, 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': 'lstm',
+           'MORPHEME-CHAR': False,
+           'CRF': False},
+    '08': {'SPELLING': False, 'CHAR': False, 'POS': False, 'DEPREL': False, 'DROPOUT': True, 'MORPHEME': 'lstm',
+           'MORPHEME-CHAR': False,
+           'CRF': False},
+    '09': {'SPELLING': False, 'CHAR': False, 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': False,
+           'MORPHEME-CHAR': 'lstm',
+           'CRF': False},
+    '10': {'SPELLING': False, 'CHAR': False, 'POS': False, 'DEPREL': False, 'DROPOUT': True, 'MORPHEME': False,
+           'MORPHEME-CHAR': 'lstm',
+           'CRF': False},
+    '11': {'SPELLING': False, 'CHAR': False, 'POS': False, 'DEPREL': False, 'DROPOUT': False, 'MORPHEME': False,
+           'MORPHEME-CHAR': False,
+           'CRF': True}
+}

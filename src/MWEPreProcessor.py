@@ -520,6 +520,18 @@ class MWEPreProcessor:
 
         self.to_cupt_with_comments()
 
+    def get_max_char_length(self, words):
+        word_lengths = [len(word) for word in words]
+        word_length_mean = np.array(word_lengths).mean()
+        word_length_std = np.array(word_lengths).std()
+        max_char_length_bound = int(round(word_length_mean + 3 * word_length_std))
+        max_char_length = max(word_lengths)
+        if max_char_length > max_char_length_bound:
+            max_char_length = max_char_length_bound
+        else:
+            max_char_length = max_char_length
+        return max_char_length
+
     def create_char_matrix(self, sentences):
         char_matrix = []
         for sentence in sentences:
@@ -593,6 +605,50 @@ class MWEPreProcessor:
         morpheme_matrix = np.asarray(morpheme_matrix)
         return morpheme_matrix
 
+    def create_morpheme_char_matrix(self, sentences):
+        morpheme_char_matrix = []
+        for sentence in sentences:
+            sent_seq = []
+            for i in range(self.max_sent):
+                word_seq = []
+                for j in range(self.max_morpheme_char_length):
+                    try:
+                        lemmafeats = sentence[i][CI['LEMMA']] + '+' + sentence[i][CI['FEATS']]
+                        word_seq.append(self.morpheme_chars2idx.get(lemmafeats[j]))
+                    except:
+                        word_seq.append(self.morpheme_chars2idx.get("</s>"))
+                sent_seq.append(word_seq)
+            morpheme_char_matrix.append(sent_seq)  # np.array(sent_seq)
+        morpheme_char_matrix = np.asarray(morpheme_char_matrix)
+        return morpheme_char_matrix
+
+    def create_crf_matrix(self, corpus):
+        corpus['FORM_RIGHT'] = corpus['FORM'].shift(-1)
+        corpus['FORM_LEFT'] = corpus['FORM'].shift(1)
+        sentence_indexes = [-1] + list(corpus.loc[corpus['BIO'] == 'space'].index)
+        crf_feas = []
+        for i, sentence_idx in enumerate(sentence_indexes[:-1]):
+            sentence = corpus.loc[sentence_idx + 1:sentence_indexes[i + 1]].iloc[:-1]
+            crf_fea = []
+            last_word_idx = 0
+            for word_idx, row in enumerate(sentence.iterrows()):
+                row = row[-1]
+                if word_idx > 0 and word_idx < len(sentence) - 1:
+                    crf_fea.append([self.word2idx.get(row['FORM']), self.word2idx.get(row['FORM_LEFT']),
+                                    self.word2idx.get(row['FORM_RIGHT'])])
+                elif word_idx == 0:  # beginning of sentence
+                    crf_fea.append([self.word2idx.get(row['FORM']), self.word2idx.get('</s>'),
+                                    self.word2idx.get(row['FORM_RIGHT'])])
+                elif word_idx == len(sentence) - 1:  # end of sentence
+                    crf_fea.append([self.word2idx.get(row['FORM']), self.word2idx.get(row['FORM_LEFT']),
+                                    self.word2idx.get('</s>')])
+                    last_word_idx = word_idx
+            for i in range(last_word_idx + 1, self.max_sent):
+                crf_fea.append([self.word2idx.get('</s>'), self.word2idx.get('</s>'), self.word2idx.get('</s>')])
+            crf_feas.append(crf_fea)
+        crf_feas = np.asarray(crf_feas)
+        return crf_feas
+
     def prepare_to_lstm(self):
         logging.info('Preparing to lstm..')
         self.train_sentences = self.read_sentences(self._train_corpus)
@@ -616,6 +672,14 @@ class MWEPreProcessor:
         self.morphemes.remove('space')
         self.morphemes = ["</s>"] + self.morphemes
 
+        self._train_corpus['LEMMA+FEATS'] = self._train_corpus['LEMMA'] + '+' + self._train_corpus['FEATS']
+        self._test_corpus['LEMMA+FEATS'] = self._test_corpus['LEMMA'] + '+' + self._test_corpus['FEATS']
+        self.lemmafeats = list(set(self._train_corpus['LEMMA+FEATS']) | set(self._test_corpus['LEMMA+FEATS']))
+        self.lemmafeats.remove('space+space')
+        self.morpheme_chars = []
+        self.morpheme_chars.append("</s>")
+        self.morpheme_chars = self.morpheme_chars + list(set([char for lf in self.lemmafeats for char in lf]))
+
         self.pos = []
         self.pos.append("</s>")
         self.pos = self.pos + list(set(self._train_corpus['UPOS']) | set(self._test_corpus['UPOS']))
@@ -637,7 +701,8 @@ class MWEPreProcessor:
 
         self.word2idx = {w: i for i, w in enumerate(self.words)}
         self.char2idx = {c: i for i, c in enumerate(self.chars)}
-        self.morpheme2idx = {t: i for i, t in enumerate(self.morphemes)}
+        self.morpheme2idx = {m: i for i, m in enumerate(self.morphemes)}
+        self.morpheme_chars2idx = {mc: i for i, mc in enumerate(self.morpheme_chars)}
         self.pos2idx = {t: i for i, t in enumerate(self.pos)}
         self.deprel2idx = {t: i for i, t in enumerate(self.deprel)}
         self.tag2idx = {t: i for i, t in enumerate(self.tags)}
@@ -646,22 +711,12 @@ class MWEPreProcessor:
         self.max_test_sent = max([len(sen) for sen in self.test_sentences])
         self.max_sent = max(self.max_train_sent, self.max_test_sent)
 
-        word_lengths = [len(word) for word in self.words]
-        word_length_mean = np.array(word_lengths).mean()
-        word_length_std = np.array(word_lengths).std()
-        max_char_length_bound = int(round(word_length_mean + 3 * word_length_std))
-        max_char_length = max(word_lengths)
-        if max_char_length > max_char_length_bound:
-            self.max_char_length = max_char_length_bound
-        else:
-            self.max_char_length = max_char_length
+        self.max_char_length = self.get_max_char_length(self.words)
+        self.max_morpheme_char_length = self.get_max_char_length(self.lemmafeats)
 
         self.n_spelling_features = 8
         self.create_spelling_embeddings()
 
         self.pos_embeddings = np.identity(len(self.pos2idx.keys()) + 1)
         self.deprel_embeddings = np.identity(len(self.deprel2idx.keys()) + 1)
-
-    def add_crf_features(self):
-        self._train_corpus['FORM_RIGHT'] = self._train_corpus['FORM'].shift(-1)
-        self._train_corpus['FORM_LEFT'] = self._train_corpus['FORM'].shift(1)
+        self.crf_embeddings = np.identity(len(self.word2idx.keys()) + 1)

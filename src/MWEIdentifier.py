@@ -36,8 +36,8 @@ class MWEIdentifier:
     def set_embedding_params(self, params):
         self.set_char_cnn_model_params(params['char_trigram_cnn'])
         self.set_char_lstm_model_params(params['char_lstm'])
-        self.set_morpheme_cnn_model_params(params['morpheme_trigram_cnn'])
         self.set_morpheme_lstm_model_params(params['morpheme_lstm'])
+        self.set_morpheme_char_lstm_model_params(params['morpheme_char_lstm'])
 
     def set_char_cnn_model_params(self, params):
         logging.info('Setting char cnn params...')
@@ -50,16 +50,15 @@ class MWEIdentifier:
         self.char_emb_size = params['char_emb_size']
         self.char_lstm_n_units = params['char_lstm_n_units']
 
-    def set_morpheme_cnn_model_params(self, params):
-        logging.info('Setting morpheme cnn params...')
-        self.morp_emb_size = params['morp_emb_size']
-        self.morp_window_size = params['morp_window_size']
-        self.morp_filter_size = params['morp_filter_size']
-
     def set_morpheme_lstm_model_params(self, params):
         logging.info('Setting morpheme lstm params...')
-        self.morp_emb_size = params['morp_emb_size']
-        self.morp_lstm_n_units = params['morp_lstm_n_units']
+        self.mor_emb_size = params['mor_emb_size']
+        self.mor_lstm_n_units = params['mor_lstm_n_units']
+
+    def set_morpheme_char_lstm_model_params(self, params):
+        logging.info('Setting morpheme char lstm params...')
+        self.mor_char_emb_size = params['mor_char_emb_size']
+        self.mor_char_lstm_n_units = params['mor_char_lstm_n_units']
 
     def set_model_word_embeddings(self):
         self.X_tr_word = [[self.mwe.word2idx[w[CI['FORM']]] for w in s] for s in self.mwe.train_sentences]
@@ -83,6 +82,10 @@ class MWEIdentifier:
         self.X_tr_morpheme = self.mwe.create_morpheme_matrix(self.mwe.train_sentences)
         self.X_te_morpheme = self.mwe.create_morpheme_matrix(self.mwe.test_sentences)
 
+    def set_model_morpheme_char_embeddings(self):
+        self.X_tr_morpheme_char = self.mwe.create_morpheme_char_matrix(self.mwe.train_sentences)
+        self.X_te_morpheme_char = self.mwe.create_morpheme_char_matrix(self.mwe.test_sentences)
+
     def set_model_pos_embeddings(self):
         self.X_tr_pos = [[self.mwe.pos2idx[w[CI['UPOS']]] for w in s] for s in self.mwe.train_sentences]
         self.X_tr_pos = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_tr_pos, padding="post", value=0)
@@ -94,6 +97,12 @@ class MWEIdentifier:
         self.X_tr_deprel = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_tr_deprel, padding="post", value=0)
         self.X_te_deprel = [[self.mwe.deprel2idx[w[CI['DEPREL']]] for w in s] for s in self.mwe.test_sentences]
         self.X_te_deprel = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_te_deprel, padding="post", value=0)
+
+    def set_crf_features(self):
+        self.X_tr_crf = self.mwe.create_crf_matrix(self.mwe._train_corpus)
+        # self.X_tr_crf = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_tr_crf, padding="post", value=0)
+        self.X_te_crf = self.mwe.create_crf_matrix(self.mwe._test_corpus)
+        # self.X_te_crf = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_te_crf, padding="post", value=0)
 
     def set_model_tags(self):
         self.y = [[self.mwe.tag2idx[w[CI['BIO']]] for w in s] for s in self.mwe.train_sentences]
@@ -130,6 +139,16 @@ class MWEIdentifier:
             self.set_model_morpheme_embeddings()
             self.X_training['morpheme_input'] = self.X_tr_morpheme
             self.X_test.append(self.X_te_morpheme)
+
+        if self.model_cfg['MORPHEME-CHAR']:
+            self.set_model_morpheme_char_embeddings()
+            self.X_training['morpheme_char_input'] = self.X_tr_morpheme_char
+            self.X_test.append(self.X_te_morpheme_char)
+
+        if self.model_cfg['CRF']:
+            self.set_crf_features()
+            self.X_training['crf_input'] = self.X_tr_crf
+            self.X_test.append(self.X_te_crf)
 
         self.set_model_tags()
         self.y = self.y
@@ -188,7 +207,6 @@ class MWEIdentifier:
                 layers.append(char_layer)
 
 
-
             elif self.model_cfg['CHAR'].lower() == 'lstm':
                 char_emb_input = Input(shape=(self.mwe.max_sent, self.mwe.max_char_length), dtype='int32',
                                        name='char_input')
@@ -204,46 +222,54 @@ class MWEIdentifier:
                 layers.append(char_layer)
 
         if self.model_cfg['MORPHEME']:
-            morp_embedding = []
-            for morp in self.mwe.morphemes:
-                limit = math.sqrt(3.0 / self.morp_emb_size)
-                morp_emb_vector = np.random.uniform(-limit, limit, self.morp_emb_size)
-                morp_embedding.append(morp_emb_vector)
+            mor_embedding = []
+            for mor in self.mwe.morphemes:
+                limit = math.sqrt(3.0 / self.mor_emb_size)
+                mor_emb_vector = np.random.uniform(-limit, limit, self.mor_emb_size)
+                mor_embedding.append(mor_emb_vector)
 
-            morp_embedding[0] = np.zeros(self.morp_emb_size)  # Zero padding
-            morp_embedding = np.asarray(morp_embedding)
+            mor_embedding[0] = np.zeros(self.mor_emb_size)  # Zero padding
+            mor_embedding = np.asarray(mor_embedding)
 
-            if self.model_cfg['MORPHEME'].lower() == 'cnn':
-                morp_emb_input = Input(shape=(self.mwe.max_sent, self.mwe.max_morpheme_len), dtype='int32',
-                                       name='morpheme_input')
-                morp_emb_layer = TimeDistributed(
-                    Embedding(input_dim=morp_embedding.shape[0], output_dim=morp_embedding.shape[1],
-                              weights=[morp_embedding],
-                              trainable=True, mask_zero=False), name='morp_embeddings')(
-                    morp_emb_input)
-                morp_cnn_layer = TimeDistributed(
-                    Conv1D(filters=self.char_filter_size, kernel_size=self.morp_window_size, padding='same'),
-                    name="morp_cnn")(
-                    morp_emb_layer)
-                morp_layer = TimeDistributed(GlobalMaxPooling1D(), name="morp_pooling")(morp_cnn_layer)
-                inputs.append(morp_emb_input)
-                layers.append(morp_layer)
-
-
-
-            elif self.model_cfg['MORPHEME'].lower() == 'lstm':
-                morp_emb_input = Input(shape=(self.mwe.max_sent, self.mwe.max_morpheme_len), dtype='int32',
-                                       name='morpheme_input')
-                morp_emb_layer = TimeDistributed(
-                    Embedding(input_dim=morp_embedding.shape[0], output_dim=morp_embedding.shape[1],
-                              weights=[morp_embedding],
+            if self.model_cfg['MORPHEME'].lower() == 'lstm':
+                mor_emb_input = Input(shape=(self.mwe.max_sent, self.mwe.max_morpheme_len), dtype='int32',
+                                      name='morpheme_input')
+                mor_emb_layer = TimeDistributed(
+                    Embedding(input_dim=mor_embedding.shape[0], output_dim=mor_embedding.shape[1],
+                              weights=[mor_embedding],
                               trainable=True, mask_zero=True), name='morp_embeddings')(
-                    morp_emb_input)
-                morp_layer = TimeDistributed(Bidirectional(LSTM(self.morp_lstm_n_units, return_sequences=False)),
-                                             name="morp_lstm")(
-                    morp_emb_layer)
-                inputs.append(morp_emb_input)
-                layers.append(morp_layer)
+                    mor_emb_input)
+                mor_layer = TimeDistributed(Bidirectional(LSTM(self.mor_lstm_n_units, return_sequences=False)),
+                                            name="morp_lstm")(
+                    mor_emb_layer)
+                inputs.append(mor_emb_input)
+                layers.append(mor_layer)
+
+        if self.model_cfg['MORPHEME-CHAR']:
+            mor_char_embedding = []
+            for mor_char in self.mwe.morpheme_chars:
+                limit = math.sqrt(3.0 / self.mor_char_emb_size)
+                morpheme_char_emb_vector = np.random.uniform(-limit, limit, self.mor_char_emb_size)
+                mor_char_embedding.append(morpheme_char_emb_vector)
+
+            mor_char_embedding[0] = np.zeros(self.mor_char_emb_size)  # Zero padding
+            mor_char_embedding = np.asarray(mor_char_embedding)
+
+            if self.model_cfg['MORPHEME-CHAR'].lower() == 'lstm':
+                mor_char_emb_input = Input(shape=(self.mwe.max_sent, self.mwe.max_morpheme_char_length),
+                                           dtype='int32',
+                                           name='morpheme_char_input')
+                mor_char_emb_layer = TimeDistributed(
+                    Embedding(input_dim=mor_char_embedding.shape[0], output_dim=mor_char_embedding.shape[1],
+                              weights=[mor_char_embedding],
+                              trainable=True, mask_zero=True), name='mor_char_embeddings')(
+                    mor_char_emb_input)
+                mor_char_layer = TimeDistributed(
+                    Bidirectional(LSTM(self.mor_char_lstm_n_units, return_sequences=False)),
+                    name="mor_char_lstm")(
+                    mor_char_emb_layer)
+                inputs.append(mor_char_emb_input)
+                layers.append(mor_char_layer)
 
         if self.model_cfg['POS']:
             pos_emb_input = Input(shape=(None,), name='pos_input')
@@ -280,9 +306,22 @@ class MWEIdentifier:
                  recurrent_dropout=self.var_dropout[1]),
             name='shared_varLSTM')(embedding_layer)
 
-        output = TimeDistributed(Dense(self.mwe.n_tags, activation=None))(bilstm_layer)
+        bilstm_output = TimeDistributed(Dense(self.mwe.n_tags, activation=None))(bilstm_layer)
+        if self.model_cfg['CRF']:
+            #crf_input = Input(shape=(self.X_tr_crf.shape[1], self.X_tr_crf.shape[2]), name='crf_input')
+            crf_emb_input = Input(shape=(None,), name='crf_input')
+            crf_emb_layer = Embedding(input_dim=self.mwe.crf_embeddings.shape[0],
+                                         output_dim=self.mwe.crf_embeddings.shape[1],
+                                         weights=[self.mwe.crf_embeddings],
+                                         trainable=False, mask_zero=True, input_length=self.mwe.max_sent,
+                                         name='crf_embeddings')(
+                crf_emb_input)
+            inputs.append(crf_emb_input)
+            #inputs.append(crf_input)
+            bilstm_output = concatenate([bilstm_output, crf_emb_layer])
+
         crf = CRF(self.mwe.n_tags)  # CRF layer
-        output = crf(output)  # output
+        output = crf(bilstm_output)  # output
 
         model = Model(inputs=inputs, outputs=[output])
         model.compile(optimizer="nadam", loss=crf.loss_function, metrics=[crf.accuracy])
