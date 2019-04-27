@@ -719,4 +719,4 @@ class MWEPreProcessor:
 
         self.pos_embeddings = np.identity(len(self.pos2idx.keys()) + 1)
         self.deprel_embeddings = np.identity(len(self.deprel2idx.keys()) + 1)
-        self.crf_embeddings = np.identity(len(self.word2idx.keys()) + 1)
+        # self.crf_embeddings = np.identity(len(self.word2idx.keys()) + 1)
