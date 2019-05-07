@@ -54,7 +54,11 @@ class MWEPreProcessor:
                                   columns=['ID', 'FORM', 'LEMMA', 'UPOS', 'XPOS', 'FEATS', 'HEAD', 'DEPREL',
                                            'DEPS', 'MISC',
                                            'PARSEME:MWE'])
-
+        if self.language == 'SL':
+            self._train_corpus['FEATS'] = copy.deepcopy(self._train_corpus['XPOS'].apply(
+                lambda x: x[1:] if x != 'space' and len(x) > 1 else x))
+            self._test_corpus['FEATS'] = copy.deepcopy(self._test_corpus['XPOS'].apply(
+                lambda x: x[1:] if x != 'space' and len(x) > 1 else x))
         return new_corpus
 
     def remove_duplicate_rows(self, corpus):
@@ -626,31 +630,36 @@ class MWEPreProcessor:
         corpus['FORM_RIGHT'] = corpus['FORM'].shift(-1)
         corpus['FORM_LEFT'] = corpus['FORM'].shift(1)
         sentence_indexes = [-1] + list(corpus.loc[corpus['BIO'] == 'space'].index)
-        crf_feas = []
+        features = []
         for i, sentence_idx in enumerate(sentence_indexes[:-1]):
             sentence = corpus.loc[sentence_idx + 1:sentence_indexes[i + 1]].iloc[:-1]
-            crf_fea = []
+            fea = []
             last_word_idx = 0
             for word_idx, row in enumerate(sentence.iterrows()):
                 row = row[-1]
                 if word_idx > 0 and word_idx < len(sentence) - 1:
-                    crf_fea.append([self.word2idx.get(row['FORM']), self.word2idx.get(row['FORM_LEFT']),
-                                    self.word2idx.get(row['FORM_RIGHT'])])
+                    fea.append([self.word2idx.get(row['FORM']), self.word2idx.get(row['FORM_LEFT']),
+                                self.word2idx.get(row['FORM_RIGHT'])])
                 elif word_idx == 0:  # beginning of sentence
-                    crf_fea.append([self.word2idx.get(row['FORM']), self.word2idx.get('</s>'),
-                                    self.word2idx.get(row['FORM_RIGHT'])])
+                    fea.append([self.word2idx.get(row['FORM']), self.word2idx.get('</s>'),
+                                self.word2idx.get(row['FORM_RIGHT'])])
                 elif word_idx == len(sentence) - 1:  # end of sentence
-                    crf_fea.append([self.word2idx.get(row['FORM']), self.word2idx.get(row['FORM_LEFT']),
-                                    self.word2idx.get('</s>')])
+                    fea.append([self.word2idx.get(row['FORM']), self.word2idx.get(row['FORM_LEFT']),
+                                self.word2idx.get('</s>')])
                     last_word_idx = word_idx
             for i in range(last_word_idx + 1, self.max_sent):
-                crf_fea.append([self.word2idx.get('</s>'), self.word2idx.get('</s>'), self.word2idx.get('</s>')])
-            crf_feas.append(crf_fea)
-        crf_feas = np.asarray(crf_feas)
-        return crf_feas
+                fea.append([self.word2idx.get('</s>'), self.word2idx.get('</s>'), self.word2idx.get('</s>')])
+            features.append(fea)
+        features = np.asarray(features)
+        form = features[:, :, 0]
+        prev_form = features[:, :, 1]
+        next_form = features[:, :, 2]
+        features_dict = {'form': form, 'prev_form': prev_form, 'next_form': next_form}
+        return features_dict
 
     def prepare_to_lstm(self):
         logging.info('Preparing to lstm..')
+
         self.train_sentences = self.read_sentences(self._train_corpus)
         self.test_sentences = self.read_sentences(self._test_corpus)
 
@@ -719,4 +728,3 @@ class MWEPreProcessor:
 
         self.pos_embeddings = np.identity(len(self.pos2idx.keys()) + 1)
         self.deprel_embeddings = np.identity(len(self.deprel2idx.keys()) + 1)
-        # self.crf_embeddings = np.identity(len(self.word2idx.keys()) + 1)
