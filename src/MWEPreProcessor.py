@@ -56,7 +56,7 @@ class MWEPreProcessor:
                                            'PARSEME:MWE'])
         if self.language == 'SL':
             new_corpus['FEATS'] = copy.deepcopy(new_corpus['XPOS'].apply(
-                lambda x: x[1:] if x != 'space' and len(x) > 1 else x))
+                lambda x: x[1:] if x != None and len(x) > 1 else x))
         return new_corpus
 
     def remove_duplicate_rows(self, corpus):
