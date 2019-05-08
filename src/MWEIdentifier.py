@@ -98,11 +98,9 @@ class MWEIdentifier:
         self.X_te_deprel = [[self.mwe.deprel2idx[w[CI['DEPREL']]] for w in s] for s in self.mwe.test_sentences]
         self.X_te_deprel = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_te_deprel, padding="post", value=0)
 
-    # def set_crf_features(self):
-    #     self.X_tr_crf = self.mwe.create_crf_matrix(self.mwe._train_corpus)
-    #     # self.X_tr_crf = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_tr_crf, padding="post", value=0)
-    #     self.X_te_crf = self.mwe.create_crf_matrix(self.mwe._test_corpus)
-    #     # self.X_te_crf = pad_sequences(maxlen=self.mwe.max_sent, sequences=self.X_te_crf, padding="post", value=0)
+    def set_crf_features(self):
+        self.X_tr_crf = self.mwe.create_crf_matrix(self.mwe._train_corpus)
+        self.X_te_crf = self.mwe.create_crf_matrix(self.mwe._test_corpus)
 
     def set_model_tags(self):
         self.y = [[self.mwe.tag2idx[w[CI['BIO']]] for w in s] for s in self.mwe.train_sentences]
@@ -145,10 +143,14 @@ class MWEIdentifier:
             self.X_training['morpheme_char_input'] = self.X_tr_morpheme_char
             self.X_test.append(self.X_te_morpheme_char)
 
-        # if self.model_cfg['CRF']:
-        #     self.set_crf_features()
-        #     self.X_training['crf_input'] = self.X_tr_crf
-        #     self.X_test.append(self.X_te_crf)
+        if self.model_cfg['CRF']:
+            self.set_crf_features()
+            self.X_training['crf_form'] = self.X_tr_crf['form']
+            self.X_training['crf_prev_form'] = self.X_tr_crf['prev_form']
+            self.X_training['crf_next_form'] = self.X_tr_crf['next_form']
+            self.X_test.append(self.X_te_crf['form'])
+            self.X_test.append(self.X_te_crf['prev_form'])
+            self.X_test.append(self.X_te_crf['next_form'])
 
         self.set_model_tags()
         self.y = self.y
@@ -306,20 +308,31 @@ class MWEIdentifier:
                  recurrent_dropout=self.var_dropout[1]),
             name='shared_varLSTM')(embedding_layer)
 
-        bilstm_output = TimeDistributed(Dense(self.mwe.n_tags, activation=None))(bilstm_layer)
+        bilstm_output = TimeDistributed(Dense(self.mwe.n_tags, activation=None), name='time_distributed')(bilstm_layer)
 
-        # if self.model_cfg['CRF']:
-        #     #crf_input = Input(shape=(self.X_tr_crf.shape[1], self.X_tr_crf.shape[2]), name='crf_input')
-        #     crf_emb_input = Input(shape=(None,), name='crf_input')
-        #     crf_emb_layer = Embedding(input_dim=self.mwe.crf_embeddings.shape[0],
-        #                                  output_dim=self.mwe.crf_embeddings.shape[1],
-        #                                  weights=[self.mwe.crf_embeddings],
-        #                                  trainable=False, mask_zero=True, input_length=self.mwe.max_sent,
-        #                                  name='crf_embeddings')(
-        #         crf_emb_input)
-        #     inputs.append(crf_emb_input)
-        #     #inputs.append(crf_input)
-        #     bilstm_output = concatenate([bilstm_output, crf_emb_layer])
+        if self.model_cfg['CRF']:
+            crf_form_input = Input(shape=(None,), name='crf_form')
+            crf_form_layer = Embedding(input_dim=self.mwe.n_words,
+                                       output_dim=1,
+                                       trainable=True, mask_zero=True, input_length=self.mwe.max_sent,
+                                       name='crf_form_embeddings')(
+                crf_form_input)
+            crf_prev_form_input = Input(shape=(None,), name='crf_prev_form')
+            crf_prev_form_layer = Embedding(input_dim=self.mwe.n_words,
+                                            output_dim=1,
+                                            trainable=True, mask_zero=True, input_length=self.mwe.max_sent,
+                                            name='crf_prev_form_embeddings')(
+                crf_prev_form_input)
+            crf_next_form_input = Input(shape=(None,), name='crf_next_form')
+            crf_next_form_layer = Embedding(input_dim=self.mwe.n_words,
+                                            output_dim=1,
+                                            trainable=True, mask_zero=True, input_length=self.mwe.max_sent,
+                                            name='crf_next_form_embeddings')(
+                crf_next_form_input)
+            inputs.append(crf_form_input)
+            inputs.append(crf_prev_form_input)
+            inputs.append(crf_next_form_input)
+            bilstm_output = concatenate([bilstm_output, crf_form_layer, crf_prev_form_layer, crf_next_form_layer])  #
 
         crf = CRF(self.mwe.n_tags)  # CRF layer
         output = crf(bilstm_output)  # output
