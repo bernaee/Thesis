@@ -55,9 +55,7 @@ class MWEPreProcessor:
                                            'DEPS', 'MISC',
                                            'PARSEME:MWE'])
         if self.language == 'SL':
-            self._train_corpus['FEATS'] = copy.deepcopy(self._train_corpus['XPOS'].apply(
-                lambda x: x[1:] if x != 'space' and len(x) > 1 else x))
-            self._test_corpus['FEATS'] = copy.deepcopy(self._test_corpus['XPOS'].apply(
+            new_corpus['FEATS'] = copy.deepcopy(new_corpus['XPOS'].apply(
                 lambda x: x[1:] if x != 'space' and len(x) > 1 else x))
         return new_corpus
 
