@@ -522,11 +522,11 @@ class MWEPreProcessor:
 
         self.to_cupt_with_comments()
 
-    def get_max_char_length(self, words):
+    def get_max_char_length(self, words, coefficient=3):
         word_lengths = [len(word) for word in words]
         word_length_mean = np.array(word_lengths).mean()
         word_length_std = np.array(word_lengths).std()
-        max_char_length_bound = int(round(word_length_mean + 3 * word_length_std))
+        max_char_length_bound = int(round(word_length_mean + coefficient * word_length_std))
         max_char_length = max(word_lengths)
         if max_char_length > max_char_length_bound:
             max_char_length = max_char_length_bound
@@ -719,7 +719,10 @@ class MWEPreProcessor:
         self.max_sent = max(self.max_train_sent, self.max_test_sent)
 
         self.max_char_length = self.get_max_char_length(self.words)
-        self.max_morpheme_char_length = self.get_max_char_length(self.lemmafeats)
+        morpheme_char_coeff = 3
+        if self.language == 'RO':
+            morpheme_char_coeff = 2
+        self.max_morpheme_char_length = self.get_max_char_length(self.lemmafeats, morpheme_char_coeff)
 
         self.n_spelling_features = 8
         self.create_spelling_embeddings()
