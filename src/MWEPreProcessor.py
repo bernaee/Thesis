@@ -542,9 +542,44 @@ class MWEPreProcessor:
                 word_seq = []
                 for j in range(self.max_char_length):
                     try:
-                        word_seq.append(self.char2idx.get(sentence[i][CI['FORM']][j]))
+                        word = sentence[i][CI['FORM']]
+                        word_seq.append(self.char2idx.get(word[j]))
                     except:
                         word_seq.append(self.char2idx.get("</s>"))
+                sent_seq.append(word_seq)
+            char_matrix.append(sent_seq)  # np.array(sent_seq)
+        char_matrix = np.asarray(char_matrix)
+        return char_matrix
+
+    def create_morphe_wor_char_matrix(self, sentences):
+        char_matrix = []
+        for sentence in sentences:
+            sent_seq = []
+            for i in range(self.max_sent):
+                word_seq = []
+                for j in range(self.max_morpheme_wor_char_length):
+                    try:
+                        word = sentence[i][CI['FEATS']]
+                        word_seq.append(self.morpheme_wor_chars2idx.get(word[j]))
+                    except:
+                        word_seq.append(self.morpheme_wor_chars2idx.get("</s>"))
+                sent_seq.append(word_seq)
+            char_matrix.append(sent_seq)  # np.array(sent_seq)
+        char_matrix = np.asarray(char_matrix)
+        return char_matrix
+
+    def create_morphe_wr_char_matrix(self, sentences):
+        char_matrix = []
+        for sentence in sentences:
+            sent_seq = []
+            for i in range(self.max_sent):
+                word_seq = []
+                for j in range(self.max_morpheme_wr_char_length):
+                    try:
+                        word = sentence[i][CI['LEMMA']] + '+' + sentence[i][CI['FEATS']]
+                        word_seq.append(self.morpheme_wr_chars2idx.get(word[j]))
+                    except:
+                        word_seq.append(self.morpheme_wr_chars2idx.get("</s>"))
                 sent_seq.append(word_seq)
             char_matrix.append(sent_seq)  # np.array(sent_seq)
         char_matrix = np.asarray(char_matrix)
@@ -607,23 +642,6 @@ class MWEPreProcessor:
         morpheme_matrix = np.asarray(morpheme_matrix)
         return morpheme_matrix
 
-    def create_morpheme_char_matrix(self, sentences):
-        morpheme_char_matrix = []
-        for sentence in sentences:
-            sent_seq = []
-            for i in range(self.max_sent):
-                word_seq = []
-                for j in range(self.max_morpheme_char_length):
-                    try:
-                        lemmafeats = sentence[i][CI['LEMMA']] + '+' + sentence[i][CI['FEATS']]
-                        word_seq.append(self.morpheme_chars2idx.get(lemmafeats[j]))
-                    except:
-                        word_seq.append(self.morpheme_chars2idx.get("</s>"))
-                sent_seq.append(word_seq)
-            morpheme_char_matrix.append(sent_seq)  # np.array(sent_seq)
-        morpheme_char_matrix = np.asarray(morpheme_char_matrix)
-        return morpheme_char_matrix
-
     def create_crf_matrix(self, corpus):
         corpus['FORM_RIGHT'] = corpus['FORM'].shift(-1)
         corpus['FORM_LEFT'] = corpus['FORM'].shift(1)
@@ -679,13 +697,19 @@ class MWEPreProcessor:
         self.morphemes.remove('space')
         self.morphemes = ["</s>"] + self.morphemes
 
+        self.feats = list(set(self._train_corpus['FEATS']) | set(self._test_corpus['FEATS']))
+        self.feats.remove('space')
+        self.morpheme_wor_chars = []
+        self.morpheme_wor_chars.append("</s>")
+        self.morpheme_wor_chars = self.morpheme_wor_chars + list(set([char for f in self.feats for char in f]))
+
         self._train_corpus['LEMMA+FEATS'] = self._train_corpus['LEMMA'] + '+' + self._train_corpus['FEATS']
         self._test_corpus['LEMMA+FEATS'] = self._test_corpus['LEMMA'] + '+' + self._test_corpus['FEATS']
         self.lemmafeats = list(set(self._train_corpus['LEMMA+FEATS']) | set(self._test_corpus['LEMMA+FEATS']))
         self.lemmafeats.remove('space+space')
-        self.morpheme_chars = []
-        self.morpheme_chars.append("</s>")
-        self.morpheme_chars = self.morpheme_chars + list(set([char for lf in self.lemmafeats for char in lf]))
+        self.morpheme_wr_chars = []
+        self.morpheme_wr_chars.append("</s>")
+        self.morpheme_wr_chars = self.morpheme_wr_chars + list(set([char for lf in self.lemmafeats for char in lf]))
 
         self.pos = []
         self.pos.append("</s>")
@@ -709,7 +733,8 @@ class MWEPreProcessor:
         self.word2idx = {w: i for i, w in enumerate(self.words)}
         self.char2idx = {c: i for i, c in enumerate(self.chars)}
         self.morpheme2idx = {m: i for i, m in enumerate(self.morphemes)}
-        self.morpheme_chars2idx = {mc: i for i, mc in enumerate(self.morpheme_chars)}
+        self.morpheme_wor_chars2idx = {mc: i for i, mc in enumerate(self.morpheme_wor_chars)}
+        self.morpheme_wr_chars2idx = {mc: i for i, mc in enumerate(self.morpheme_wr_chars)}
         self.pos2idx = {t: i for i, t in enumerate(self.pos)}
         self.deprel2idx = {t: i for i, t in enumerate(self.deprel)}
         self.tag2idx = {t: i for i, t in enumerate(self.tags)}
@@ -722,7 +747,8 @@ class MWEPreProcessor:
         morpheme_char_coeff = 3
         if self.language == 'RO':
             morpheme_char_coeff = 2
-        self.max_morpheme_char_length = self.get_max_char_length(self.lemmafeats, morpheme_char_coeff)
+        self.max_morpheme_wor_char_length = self.get_max_char_length(self.feats, morpheme_char_coeff)
+        self.max_morpheme_wr_char_length = self.get_max_char_length(self.lemmafeats, morpheme_char_coeff)
 
         self.n_spelling_features = 8
         self.create_spelling_embeddings()
