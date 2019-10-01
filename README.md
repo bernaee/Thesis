@@ -18,16 +18,18 @@ source vmwe_venv/bin/activate
 vmwe_venv/bin/pip3 install -r requirements.txt
 ```
 ## Usage:
-.
-├── data
-|   ├── corpora
-|       ├── sharedtask-data-master
-|           └── 1.1
-├── results
-|   ├── 01
-|       ├── ES
-|           └── 1
-└── ...
+
+          .
+          ├── data
+          |   ├── corpora
+          |       ├── sharedtask-data-master
+          |           └── 1.1
+          ├── results
+          |   ├── 01
+          |       ├── ES
+          |           └── 1
+          ├── src
+          └── Runner.py
 ```
 python Runner.py -l BG -t gappy-crossy -cp data/sharedtask-data-master/1.1 -ep data/embeddings -op results -model 05 -exp 1
 ```
