@@ -1,5 +1,6 @@
-import pandas as pd
 import os
+import argparse
+import pandas as pd
 
 
 def parse_results(results, metric):
@@ -29,8 +30,8 @@ def parse_results(results, metric):
             if type == 'MWE-proportion':
                 gold = sb_list[3].split('=')[1].split('/')
                 pred = sb_list[4].split('=')[1].split('/')
-                info[metric_type][type + '-Gold'] = int(gold[0])
-                info[metric_type][type + '-Pred'] = int(pred[0])
+                info[metric_type][type + '-Gold'] = round(int(gold[0]) / int(gold[1]) * 100, 0)
+                info[metric_type][type + '-Pred'] = round(int(pred[0]) / int(pred[1]) * 100, 0)
             if type == 'MWE-based' or type == 'Tok-based':
                 prec = round(float(sb_list[3].split('=')[2]) * 100, 2)
                 recall = round(float(sb_list[4].split('=')[2]) * 100, 2)
@@ -44,15 +45,27 @@ def parse_results(results, metric):
     return df
 
 
-output_path = '/home/berna/PycharmProjects/MS/Deep-BGT/results'
-model_name = '03'
+parser = argparse.ArgumentParser(prog='deep-bgt')
+parser.add_argument('-output', '--output_path')
+parser.add_argument('-model', '--model_name')
+parser.add_argument('-exp', '--exp-no')
+
+args = parser.parse_args()
+output_path = args.output_path
+model_name = args.model_name
+exp_numbers = args.exp_no
+exp_numbers = exp_numbers.split(',')
+
+# output_path = '/home/berna/PycharmProjects/Thesis/trials'
+# model_name = '11'
+# exp_numbers = ['1', '2', '3']
+
 languages = os.listdir(os.path.join(output_path, model_name))
-# languages=['','','']        model_name
 
 df_all = pd.DataFrame()
 df_global_all = pd.DataFrame()
 for lang in languages:
-    for exp_no in ['1', '2', '3']:
+    for exp_no in exp_numbers:
         eval_path = os.path.join(output_path, model_name, lang, exp_no, 'eval.txt')
         with open(eval_path, encoding='utf-8') as f:
             corpus = f.read()
