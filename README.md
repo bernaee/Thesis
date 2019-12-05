@@ -35,4 +35,4 @@ python Runner.py -l BG -t gappy-crossy -cp data/sharedtask-data-master/1.1 -ep d
 ```
 ## Results
 ![MWE-based F1 scores](results.png)
->[phenomenon](phenomenon.png)
+![phenomenon](phenomenon.png)
