@@ -33,6 +33,7 @@ vmwe_venv/bin/pip3 install -r requirements.txt
 ```
 python Runner.py -l BG -t gappy-crossy -cp data/sharedtask-data-master/1.1 -ep data/embeddings -op results -model 05 -exp 1
 ```
-## Results
+## Language-specic MWE-based F-measure scores 
 ![MWE-based F1 scores](results.png)
+## Cross-lingual phenomenon-specic MWE-based F-measure scores
 ![phenomenon](phenomenon.png)
