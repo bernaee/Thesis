@@ -37,3 +37,4 @@ python Runner.py -l BG -t gappy-crossy -cp data/sharedtask-data-master/1.1 -ep d
 ![MWE-based F1 scores](results.png)
 ## Cross-lingual phenomenon-specic MWE-based F-measure scores
 
+![phenomenon](phe.png)
