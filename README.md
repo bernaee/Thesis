@@ -4,7 +4,7 @@
 - The details of the first three parts of the thesis are available in the Deep-BGT repository: https://github.com/deep-bgt/Deep-BGT. 
 - This repo contains the details of the representation learning methods used for VMWE identification. I compare character-level CNNs and character-level BiLSTM networks. Also, I analyze two different input schemes to represent morphological information using BiLSTM networks.
 - I use the [PARSEME VMWE Corpora Edition 1.1](http://multiword.sourceforge.net/PHITE.php?sitesig=CONF&page=CONF_04_LAW-MWE-CxG_2018___lb__COLING__rb__), the [fastText word embeddings](https://github.com/facebookresearch/fastText/blob/master/docs/crawl-vectors.md) and the bigappy-unicrossy tagging scheme.
-- The corpora covers 19 languages:
+- The corpora cover 19 languages:
           Bulgarian (BG), German (DE), Greek (EL), English (EN), Spanish (ES), Basque (EU), Farsi (FA), French (FR),
           Hebrew (HE), Hindu (HI), Crotian (HR), Hungarian (HU), Italian (IT), Lithuanian (LT),
            Polish (PL), Portuguese (PT), Romanian (RO), Slovenian (SL), and Turkish (TR).
